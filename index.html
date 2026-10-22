@@ -10,7 +10,7 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- SheetJS (xlsx) for Excel import/export -->
+  <!-- SheetJS (xlsx) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
@@ -126,14 +126,14 @@
         <div class="card card-stat p-3 bg-white">
           <div class="text-muted small fw-bold">當月總收入</div>
           <div class="h3 fw-bold text-success mt-2 mb-0" id="statIncome">$0</div>
-          <div class="small text-muted mt-1" id="statIncomeDesc">包含所有移工住宿費與雜費</div>
+          <div class="small text-muted mt-1">含移工住宿費與宿舍各項應收</div>
         </div>
       </div>
       <div class="col-md-3">
         <div class="card card-stat p-3 bg-white">
           <div class="text-muted small fw-bold">當月總支出</div>
           <div class="h3 fw-bold text-danger mt-2 mb-0" id="statExpense">$0</div>
-          <div class="small text-muted mt-1" id="statExpenseDesc">含房東租金、水電維修、設備採購</div>
+          <div class="small text-muted mt-1">含房東租金、維修修繕與保險網路</div>
         </div>
       </div>
       <div class="col-md-3">
@@ -147,7 +147,7 @@
         <div class="card card-stat p-3 bg-white">
           <div class="text-muted small fw-bold">歷史累計盈餘 (資金結餘)</div>
           <div class="h3 fw-bold text-primary mt-2 mb-0" id="statCumulative">$0</div>
-          <div class="small text-muted mt-1">選定範圍開業至今總累積淨收益</div>
+          <div class="small text-muted mt-1">選定範圍開業至今總累積純收益</div>
         </div>
       </div>
     </div>
@@ -248,7 +248,7 @@
   </div>
 
   <script>
-    // System Master Data (Preloaded with test demo data)
+    // Master System Data
     let masterData = [
       { id: 1, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'A人 住宿費', amount: 1000 },
       { id: 2, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'B人 住宿費', amount: 1000 },
@@ -363,4 +363,256 @@
     }
 
     function renderBreakdowns(monthData, incTotal, expTotal) {
-      document.getElementById('incomeSubtotal').innerText = '小計: $' +
+      document.getElementById('incomeSubtotal').innerText = '小計: $' + incTotal.toLocaleString();
+      document.getElementById('expenseSubtotal').innerText = '小計: $' + expTotal.toLocaleString();
+
+      let incBody = document.getElementById('incomeBreakdownBody');
+      incBody.innerHTML = '';
+      let incItems = monthData.filter(i => i.type === '收入');
+      if (incItems.length === 0) {
+        incBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">無收入紀錄</td></tr>';
+      } else {
+        incItems.forEach(item => {
+          incBody.innerHTML += `
+            <tr>
+              <td class="fw-bold">${item.detail || '未指定'}</td>
+              <td>${item.dorm || '-'}</td>
+              <td>住宿費/收入</td>
+              <td class="text-end text-success fw-bold">+$${item.amount.toLocaleString()}</td>
+            </tr>
+          `;
+        });
+      }
+
+      let expBody = document.getElementById('expenseBreakdownBody');
+      expBody.innerHTML = '';
+      let expItems = monthData.filter(i => i.type === '支出');
+      if (expItems.length === 0) {
+        expBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">無支出紀錄</td></tr>';
+      } else {
+        expItems.forEach(item => {
+          expBody.innerHTML += `
+            <tr>
+              <td>${item.date}</td>
+              <td>${item.dorm || '-'}</td>
+              <td class="fw-bold text-dark">${item.detail || '雜項支出'}</td>
+              <td class="text-end text-danger fw-bold">-$${item.amount.toLocaleString()}</td>
+            </tr>
+          `;
+        });
+      }
+    }
+
+    function renderMainTable() {
+      let scopeData = getFilteredData();
+      let query = document.getElementById('tableSearch').value.toLowerCase();
+      let tbody = document.getElementById('mainTableBody');
+      tbody.innerHTML = '';
+
+      let filtered = scopeData.filter(i => 
+        (i.detail && i.detail.toLowerCase().includes(query)) ||
+        (i.dorm && i.dorm.toLowerCase().includes(query)) ||
+        (i.client && i.client.toLowerCase().includes(query))
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">無符合資料</td></tr>';
+        return;
+      }
+
+      filtered.forEach(item => {
+        let isInc = item.type === '收入';
+        tbody.innerHTML += `
+          <tr>
+            <td>${item.date}</td>
+            <td><span class="badge bg-secondary">${item.region || '未設定'}</span></td>
+            <td>${item.client || '-'}</td>
+            <td class="fw-bold">${item.dorm || '-'}</td>
+            <td><span class="badge ${isInc ? 'badge-income' : 'badge-expense'}">${item.type}</span></td>
+            <td>${item.detail}</td>
+            <td class="text-end fw-bold ${isInc ? 'text-success' : 'text-danger'}">
+              ${isInc ? '+' : '-'}$${item.amount.toLocaleString()}
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    function updateCharts(scopeData, monthData) {
+      let monthsMap = {};
+      scopeData.forEach(item => {
+        let m = normalizeMonthStr(item.date);
+        if (!monthsMap[m]) monthsMap[m] = { inc: 0, exp: 0 };
+        if (item.type === '收入') monthsMap[m].inc += item.amount;
+        else monthsMap[m].exp += item.amount;
+      });
+
+      let labels = Object.keys(monthsMap).sort();
+      let incSeries = labels.map(l => monthsMap[l].inc);
+      let expSeries = labels.map(l => monthsMap[l].exp);
+      let plSeries = labels.map(l => monthsMap[l].inc - monthsMap[l].exp);
+
+      if (trendChart) trendChart.destroy();
+      let ctx1 = document.getElementById('annualTrendChart').getContext('2d');
+      trendChart = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: '總收入', data: incSeries, backgroundColor: '#2ecc71' },
+            { label: '總支出', data: expSeries, backgroundColor: '#e74c3c' },
+            { label: '當月淨利', data: plSeries, type: 'line', borderColor: '#3498db', fill: false, borderWidth: 3 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      let expCategoryMap = {};
+      monthData.filter(i => i.type === '支出').forEach(i => {
+        let cat = '修繕維修';
+        let d = i.detail.toLowerCase();
+        if (d.includes('租金')) cat = '房屋租金';
+        else if (d.includes('網路')) cat = '網路通訊';
+        else if (d.includes('保險')) cat = '公共保險';
+        else if (d.includes('設備') || d.includes('洗衣機') || d.includes('燈') || d.includes('監視器')) cat = '設備採購';
+        
+        expCategoryMap[cat] = (expCategoryMap[cat] || 0) + i.amount;
+      });
+
+      if (categoryChart) categoryChart.destroy();
+      let ctx2 = document.getElementById('expenseCategoryChart').getContext('2d');
+      categoryChart = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(expCategoryMap).length > 0 ? Object.keys(expCategoryMap) : ['無支出'],
+          datasets: [{
+            data: Object.keys(expCategoryMap).length > 0 ? Object.values(expCategoryMap) : [1],
+            backgroundColor: ['#e74c3c', '#e67e22', '#f1c40f', '#9b59b6', '#34495e']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    // High-Precision Robust Excel Parser
+    function handleExcelUpload(e) {
+      let file = e.target.files[0];
+      if (!file) return;
+
+      let reader = new FileReader();
+      reader.onload = function(evt) {
+        let data = new Uint8Array(evt.target.result);
+        let workbook = XLSX.read(data, { type: 'array' });
+        
+        let newRecords = [];
+
+        workbook.SheetNames.forEach(sheetName => {
+          let sheet = workbook.Sheets[sheetName];
+          let rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+          // Extract region from Sheet Name e.g. 115.10(宜蘭) or 115.10(汐止)
+          let regionMatch = sheetName.match(/[\(（](.*?)[\)）]/);
+          let sheetRegion = regionMatch ? regionMatch[1].trim() : '通用區域';
+
+          rows.forEach(row => {
+            if (!row || row.length === 0) return;
+
+            let rowStrArr = row.map(cell => cell.toString().trim());
+
+            // 1. Process Expense File (日期, 內容, 支出)
+            if (rowStrArr[0] && rowStrArr[0].match(/\d+[\/\-]\d+[\/\-]\d+/) && rowStrArr[1] && rowStrArr[2]) {
+              let dateVal = rowStrArr[0];
+              let content = rowStrArr[1];
+              let amount = parseFloat(rowStrArr[2].replace(/,/g, ''));
+
+              if (!isNaN(amount) && content !== '內容') {
+                // Determine Client
+                let client = 'APPLE';
+                let lowerC = content.toLowerCase();
+                if (lowerC.includes('mango')) client = 'mango';
+                else if (lowerC.includes('orange')) client = 'orange';
+                else if (lowerC.includes('banana')) client = 'BANANA';
+                else if (lowerC.includes('carry')) client = 'CARRY';
+
+                // Determine Dormitory
+                let dorm = '綜合宿舍';
+                let dormMatch = content.match(/(福安|國強|莊敬|民享|中原|幸福|延平|興平|五工|建中|復興|復華)/);
+                if (dormMatch) dorm = dormMatch[1] + '宿舍';
+
+                newRecords.push({
+                  id: Date.now() + Math.random(),
+                  date: dateVal,
+                  region: sheetRegion !== '通用區域' ? sheetRegion : '桃園',
+                  client: client,
+                  dorm: dorm,
+                  type: '支出',
+                  detail: content,
+                  amount: amount
+                });
+                return;
+              }
+            }
+
+            // 2. Process Income Billing Form (姓名, 護照, ..., 住宿費, ..., 房號)
+            let personName = rowStrArr[0];
+            let accommodationFeeStr = rowStrArr[5]; // Index 5 corresponds to Dormitory Fee (住宿費)
+            let dormInfo = rowStrArr[10] || rowStrArr[9] || rowStrArr[8] || '';
+
+            if (personName && accommodationFeeStr) {
+              let fee = parseFloat(accommodationFeeStr.toString().replace(/,/g, ''));
+              if (!isNaN(fee) && fee > 0 && personName !== '姓名' && personName !== '合計金額' && !personName.includes('Billing Detail')) {
+                let dormName = '復興宿舍';
+                if (dormInfo) {
+                  let dMatch = dormInfo.match(/(復興|復華|興平|五工路|建國)/);
+                  if (dMatch) dormName = dMatch[1] + '宿舍';
+                }
+
+                newRecords.push({
+                  id: Date.now() + Math.random(),
+                  date: '115/10/01',
+                  region: sheetRegion,
+                  client: 'APPLE',
+                  dorm: dormName,
+                  type: '收入',
+                  detail: `${personName} (住宿費/應收)`,
+                  amount: fee
+                });
+              }
+            }
+          });
+        });
+
+        if (newRecords.length > 0) {
+          masterData = masterData.concat(newRecords);
+          alert(`🎉 成功解析並匯入 ${newRecords.length} 筆收支資料！`);
+          initFilters();
+          onFilterChange();
+        } else {
+          alert('未能抓取到相符的欄位，請確認上傳的檔案內容。');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function downloadSampleExcel() {
+      let sampleData = [
+        ["日期", "內容", "支出"],
+        ["115/10/01", "APPLE福安宿舍租金11/1~11/30", 6000],
+        ["115/10/05", "orange中原宿舍更換浴室燈座+燈泡", 336]
+      ];
+      let ws = XLSX.utils.aoa_to_sheet(sampleData);
+      let wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "收支匯入範本");
+      XLSX.writeFile(wb, "宿舍收支匯入範本.xlsx");
+    }
+
+    function resetSystemData() {
+      if (confirm('確定要清空所有資料嗎？')) {
+        masterData = [];
+        initFilters();
+        onFilterChange();
+      }
+    }
+  </script>
+</body>
+</html>
