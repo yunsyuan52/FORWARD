@@ -10,7 +10,7 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- SheetJS (xlsx) -->
+  <!-- SheetJS (xlsx) for Excel parsing -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
@@ -126,7 +126,7 @@
         <div class="card card-stat p-3 bg-white">
           <div class="text-muted small fw-bold">當月總收入</div>
           <div class="h3 fw-bold text-success mt-2 mb-0" id="statIncome">$0</div>
-          <div class="small text-muted mt-1">含移工住宿費與宿舍各項應收</div>
+          <div class="small text-muted mt-1">含移工託管費與宿舍各項應收</div>
         </div>
       </div>
       <div class="col-md-3">
@@ -165,8 +165,8 @@
               <thead class="table-light sticky-top">
                 <tr>
                   <th>對象/人員</th>
-                  <th>宿舍</th>
-                  <th>品項/內容</th>
+                  <th>宿舍別</th>
+                  <th>計費區間</th>
                   <th class="text-end">金額</th>
                 </tr>
               </thead>
@@ -189,7 +189,7 @@
               <thead class="table-light sticky-top">
                 <tr>
                   <th>日期</th>
-                  <th>宿舍</th>
+                  <th>宿舍別</th>
                   <th>支出品項/原因</th>
                   <th class="text-end">金額</th>
                 </tr>
@@ -229,7 +229,7 @@
         <table class="table table-hover align-middle">
           <thead class="table-light sticky-top">
             <tr>
-              <th>日期</th>
+              <th>日期 / 區間</th>
               <th>區域</th>
               <th>客戶 (雇主)</th>
               <th>宿舍名稱</th>
@@ -248,13 +248,13 @@
   </div>
 
   <script>
-    // Master System Data
+    // System Master Data
     let masterData = [
-      { id: 1, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'A人 住宿費', amount: 1000 },
-      { id: 2, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'B人 住宿費', amount: 1000 },
-      { id: 3, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'C人 住宿費', amount: 1000 },
-      { id: 4, date: '115/01/10', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '支出', detail: '水管維修', amount: 1000 },
-      { id: 5, date: '115/01/15', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '支出', detail: '洗衣機採購', amount: 5000 }
+      { id: 1, date: '115/01/05', period: '1/1~1/31', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'A人 (託管費)', amount: 1000 },
+      { id: 2, date: '115/01/05', period: '1/1~1/31', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'B人 (託管費)', amount: 1000 },
+      { id: 3, date: '115/01/05', period: '1/1~1/31', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'C人 (託管費)', amount: 1000 },
+      { id: 4, date: '115/01/10', period: '-', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '支出', detail: '水管維修', amount: 1000 },
+      { id: 5, date: '115/01/15', period: '-', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '支出', detail: '洗衣機採購', amount: 5000 }
     ];
 
     let trendChart = null;
@@ -377,7 +377,7 @@
             <tr>
               <td class="fw-bold">${item.detail || '未指定'}</td>
               <td>${item.dorm || '-'}</td>
-              <td>住宿費/收入</td>
+              <td><span class="badge bg-light text-dark border">${item.period || '全月'}</span></td>
               <td class="text-end text-success fw-bold">+$${item.amount.toLocaleString()}</td>
             </tr>
           `;
@@ -424,7 +424,7 @@
         let isInc = item.type === '收入';
         tbody.innerHTML += `
           <tr>
-            <td>${item.date}</td>
+            <td>${item.date} ${item.period ? `<small class="text-muted">(${item.period})</small>` : ''}</td>
             <td><span class="badge bg-secondary">${item.region || '未設定'}</span></td>
             <td>${item.client || '-'}</td>
             <td class="fw-bold">${item.dorm || '-'}</td>
@@ -494,7 +494,7 @@
       });
     }
 
-    // High-Precision Robust Excel Parser
+    // High-Precision Robust Excel Parser (Extracts Name, Dormitory, Amount, Period)
     function handleExcelUpload(e) {
       let file = e.target.files[0];
       if (!file) return;
@@ -510,23 +510,21 @@
           let sheet = workbook.Sheets[sheetName];
           let rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-          // Extract region from Sheet Name e.g. 115.10(宜蘭) or 115.10(汐止)
           let regionMatch = sheetName.match(/[\(（](.*?)[\)）]/);
-          let sheetRegion = regionMatch ? regionMatch[1].trim() : '通用區域';
+          let sheetRegion = regionMatch ? regionMatch[1].trim() : '宜蘭/汐止';
 
           rows.forEach(row => {
             if (!row || row.length === 0) return;
 
             let rowStrArr = row.map(cell => cell.toString().trim());
 
-            // 1. Process Expense File (日期, 內容, 支出)
+            // 1. Process Expense Ledger (Date, Content, Expense Amount)
             if (rowStrArr[0] && rowStrArr[0].match(/\d+[\/\-]\d+[\/\-]\d+/) && rowStrArr[1] && rowStrArr[2]) {
               let dateVal = rowStrArr[0];
               let content = rowStrArr[1];
               let amount = parseFloat(rowStrArr[2].replace(/,/g, ''));
 
               if (!isNaN(amount) && content !== '內容') {
-                // Determine Client
                 let client = 'APPLE';
                 let lowerC = content.toLowerCase();
                 if (lowerC.includes('mango')) client = 'mango';
@@ -534,7 +532,6 @@
                 else if (lowerC.includes('banana')) client = 'BANANA';
                 else if (lowerC.includes('carry')) client = 'CARRY';
 
-                // Determine Dormitory
                 let dorm = '綜合宿舍';
                 let dormMatch = content.match(/(福安|國強|莊敬|民享|中原|幸福|延平|興平|五工|建中|復興|復華)/);
                 if (dormMatch) dorm = dormMatch[1] + '宿舍';
@@ -542,7 +539,8 @@
                 newRecords.push({
                   id: Date.now() + Math.random(),
                   date: dateVal,
-                  region: sheetRegion !== '通用區域' ? sheetRegion : '桃園',
+                  period: '-',
+                  region: sheetRegion !== '宜蘭/汐止' ? sheetRegion : '桃園',
                   client: client,
                   dorm: dorm,
                   type: '支出',
@@ -553,29 +551,30 @@
               }
             }
 
-            // 2. Process Income Billing Form (姓名, 護照, ..., 住宿費, ..., 房號)
-            let personName = rowStrArr[0];
-            let accommodationFeeStr = rowStrArr[5]; // Index 5 corresponds to Dormitory Fee (住宿費)
-            let dormInfo = rowStrArr[10] || rowStrArr[9] || rowStrArr[8] || '';
+            // 2. Process Income Form (Name, Passport, Dorm, Management Fee, Water/Elec, Total, Period)
+            let name = rowStrArr[0];
+            let dormNameRaw = rowStrArr[2];
+            let feeStr = rowStrArr[3] || rowStrArr[5]; // Management Fee (託管費) or Total
+            let periodStr = rowStrArr[6] || '全月';
 
-            if (personName && accommodationFeeStr) {
-              let fee = parseFloat(accommodationFeeStr.toString().replace(/,/g, ''));
-              if (!isNaN(fee) && fee > 0 && personName !== '姓名' && personName !== '合計金額' && !personName.includes('Billing Detail')) {
-                let dormName = '復興宿舍';
-                if (dormInfo) {
-                  let dMatch = dormInfo.match(/(復興|復華|興平|五工路|建國)/);
-                  if (dMatch) dormName = dMatch[1] + '宿舍';
+            if (name && name !== '姓名' && name !== '合計金額' && !name.includes('Billing Detail') && !name.includes('灃康')) {
+              let amount = parseFloat(feeStr.replace(/,/g, ''));
+              if (!isNaN(amount) && amount > 0) {
+                let dormFormatted = '綜合宿舍';
+                if (dormNameRaw) {
+                  dormFormatted = dormNameRaw.includes('宿舍') ? dormNameRaw : dormNameRaw + '宿舍';
                 }
 
                 newRecords.push({
                   id: Date.now() + Math.random(),
                   date: '115/10/01',
+                  period: periodStr,
                   region: sheetRegion,
                   client: 'APPLE',
-                  dorm: dormName,
+                  dorm: dormFormatted,
                   type: '收入',
-                  detail: `${personName} (住宿費/應收)`,
-                  amount: fee
+                  detail: `${name} (託管費)`,
+                  amount: amount
                 });
               }
             }
@@ -596,14 +595,14 @@
 
     function downloadSampleExcel() {
       let sampleData = [
-        ["日期", "內容", "支出"],
-        ["115/10/01", "APPLE福安宿舍租金11/1~11/30", 6000],
-        ["115/10/05", "orange中原宿舍更換浴室燈座+燈泡", 336]
+        ["姓名", "護照號碼", "宿舍名稱", "託管費", "水電費", "合計", "備註"],
+        ["陳氏海燕", "ABBB1234", "復興", 2700, "", 2700, "10/1~10/31"],
+        ["黎紅絨", "ABBB1235", "復興", 2700, "", 2700, "10/1~10/31"]
       ];
       let ws = XLSX.utils.aoa_to_sheet(sampleData);
       let wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "收支匯入範本");
-      XLSX.writeFile(wb, "宿舍收支匯入範本.xlsx");
+      XLSX.utils.book_append_sheet(wb, ws, "託管費收入範本");
+      XLSX.writeFile(wb, "宿舍託管費收入範本.xlsx");
     }
 
     function resetSystemData() {
