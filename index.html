@@ -152,7 +152,7 @@
       </div>
     </div>
 
-    <!-- Monthly Detailed Breakdowns (Left: Income, Right: Expense) -->
+    <!-- Monthly Detailed Breakdowns -->
     <div class="row g-3 mb-4">
       <div class="col-md-6">
         <div class="breakdown-box shadow-sm">
@@ -223,7 +223,7 @@
     <div class="table-container mb-4">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="fw-bold mb-0"><i class="fa-solid fa-list-check me-2 text-dark"></i>完整收支明細資料庫</h5>
-        <input type="text" id="tableSearch" class="form-select w-auto" placeholder="搜尋內容、品項、姓名..." onkeyup="renderMainTable()">
+        <input type="text" id="tableSearch" class="form-control w-auto" placeholder="搜尋內容、品項、姓名..." onkeyup="renderMainTable()">
       </div>
       <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
         <table class="table table-hover align-middle">
@@ -248,14 +248,13 @@
   </div>
 
   <script>
-    // System Master Data
+    // System Master Data (Preloaded with test demo data)
     let masterData = [
-      // Preset Test Data matching user specifications (115年1月 & 115年10月)
-      { id: 1, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國', type: '收入', detail: 'A人', amount: 1000 },
-      { id: 2, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國', type: '收入', detail: 'B人', amount: 1000 },
-      { id: 3, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國', type: '收入', detail: 'C人', amount: 1000 },
-      { id: 4, date: '115/01/10', region: '宜蘭', client: 'APPLE', dorm: '建國', type: '支出', detail: '水管維修', amount: 1000 },
-      { id: 5, date: '115/01/15', region: '宜蘭', client: 'APPLE', dorm: '建國', type: '支出', detail: '洗衣機採購', amount: 5000 }
+      { id: 1, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'A人 住宿費', amount: 1000 },
+      { id: 2, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'B人 住宿費', amount: 1000 },
+      { id: 3, date: '115/01/05', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'C人 住宿費', amount: 1000 },
+      { id: 4, date: '115/01/10', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '支出', detail: '水管維修', amount: 1000 },
+      { id: 5, date: '115/01/15', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '支出', detail: '洗衣機採購', amount: 5000 }
     ];
 
     let trendChart = null;
@@ -268,7 +267,7 @@
 
     function normalizeMonthStr(dateStr) {
       if (!dateStr) return '未知月份';
-      let parts = dateStr.toString().trim().split('/');
+      let parts = dateStr.toString().trim().split(/[\/\-]/);
       if (parts.length >= 2) {
         let year = parts[0];
         let month = parts[1].padStart(2, '0');
@@ -332,7 +331,6 @@
       let scopeData = getFilteredData();
       let selectedMonth = document.getElementById('filterMonth').value;
 
-      // 1. Calculate Monthly KPIs
       let monthData = scopeData.filter(item => normalizeMonthStr(item.date) === selectedMonth);
       let incTotal = monthData.filter(i => i.type === '收入').reduce((a, b) => a + b.amount, 0);
       let expTotal = monthData.filter(i => i.type === '支出').reduce((a, b) => a + b.amount, 0);
@@ -352,7 +350,6 @@
         document.getElementById('statPLDesc').innerText = `當月淨盈餘 $${monthlyPL.toLocaleString()}`;
       }
 
-      // 2. Cumulative Surplus
       let cumInc = scopeData.filter(i => i.type === '收入').reduce((a, b) => a + b.amount, 0);
       let cumExp = scopeData.filter(i => i.type === '支出').reduce((a, b) => a + b.amount, 0);
       let cumSurplus = cumInc - cumExp;
@@ -360,257 +357,10 @@
       cumEl.innerText = (cumSurplus >= 0 ? '+$' : '-$') + Math.abs(cumSurplus).toLocaleString();
       cumEl.className = cumSurplus >= 0 ? 'h3 fw-bold mt-2 mb-0 text-primary' : 'h3 fw-bold mt-2 mb-0 text-loss';
 
-      // 3. Render Breakdowns
       renderBreakdowns(monthData, incTotal, expTotal);
-
-      // 4. Render Main Table
       renderMainTable();
-
-      // 5. Update Charts
       updateCharts(scopeData, monthData);
     }
 
     function renderBreakdowns(monthData, incTotal, expTotal) {
-      document.getElementById('incomeSubtotal').innerText = '小計: $' + incTotal.toLocaleString();
-      document.getElementById('expenseSubtotal').innerText = '小計: $' + expTotal.toLocaleString();
-
-      let incBody = document.getElementById('incomeBreakdownBody');
-      incBody.innerHTML = '';
-      let incItems = monthData.filter(i => i.type === '收入');
-      if (incItems.length === 0) {
-        incBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">無收入紀錄</td></tr>';
-      } else {
-        incItems.forEach(item => {
-          incBody.innerHTML += `
-            <tr>
-              <td class="fw-bold">${item.detail || '未指定'}</td>
-              <td>${item.dorm || '-'}</td>
-              <td>住宿費/收入</td>
-              <td class="text-end text-success fw-bold">+$${item.amount.toLocaleString()}</td>
-            </tr>
-          `;
-        });
-      }
-
-      let expBody = document.getElementById('expenseBreakdownBody');
-      expBody.innerHTML = '';
-      let expItems = monthData.filter(i => i.type === '支出');
-      if (expItems.length === 0) {
-        expBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">無支出紀錄</td></tr>';
-      } else {
-        expItems.forEach(item => {
-          expBody.innerHTML += `
-            <tr>
-              <td>${item.date}</td>
-              <td>${item.dorm || '-'}</td>
-              <td class="fw-bold text-dark">${item.detail || '雜項支出'}</td>
-              <td class="text-end text-danger fw-bold">-$${item.amount.toLocaleString()}</td>
-            </tr>
-          `;
-        });
-      }
-    }
-
-    function renderMainTable() {
-      let scopeData = getFilteredData();
-      let query = document.getElementById('tableSearch').value.toLowerCase();
-      let tbody = document.getElementById('mainTableBody');
-      tbody.innerHTML = '';
-
-      let filtered = scopeData.filter(i => 
-        (i.detail && i.detail.toLowerCase().includes(query)) ||
-        (i.dorm && i.dorm.toLowerCase().includes(query)) ||
-        (i.client && i.client.toLowerCase().includes(query))
-      );
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">無符合資料</td></tr>';
-        return;
-      }
-
-      filtered.forEach(item => {
-        let isInc = item.type === '收入';
-        tbody.innerHTML += `
-          <tr>
-            <td>${item.date}</td>
-            <td><span class="badge bg-secondary">${item.region || '未設定'}</span></td>
-            <td>${item.client || '-'}</td>
-            <td class="fw-bold">${item.dorm || '-'}</td>
-            <td><span class="badge ${isInc ? 'badge-income' : 'badge-expense'}">${item.type}</span></td>
-            <td>${item.detail}</td>
-            <td class="text-end fw-bold ${isInc ? 'text-success' : 'text-danger'}">
-              ${isInc ? '+' : '-'}$${item.amount.toLocaleString()}
-            </td>
-          </tr>
-        `;
-      });
-    }
-
-    function updateCharts(scopeData, monthData) {
-      // 1. Trend Chart
-      let monthsMap = {};
-      scopeData.forEach(item => {
-        let m = normalizeMonthStr(item.date);
-        if (!monthsMap[m]) monthsMap[m] = { inc: 0, exp: 0 };
-        if (item.type === '收入') monthsMap[m].inc += item.amount;
-        else monthsMap[m].exp += item.amount;
-      });
-
-      let labels = Object.keys(monthsMap).sort();
-      let incSeries = labels.map(l => monthsMap[l].inc);
-      let expSeries = labels.map(l => monthsMap[l].exp);
-      let plSeries = labels.map(l => monthsMap[l].inc - monthsMap[l].exp);
-
-      if (trendChart) trendChart.destroy();
-      let ctx1 = document.getElementById('annualTrendChart').getContext('2d');
-      trendChart = new Chart(ctx1, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [
-            { label: '總收入', data: incSeries, backgroundColor: '#2ecc71' },
-            { label: '總支出', data: expSeries, backgroundColor: '#e74c3c' },
-            { label: '當月淨利', data: plSeries, type: 'line', borderColor: '#3498db', fill: false, borderWidth: 3 }
-          ]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
-
-      // 2. Category Pie Chart
-      let expCategoryMap = {};
-      monthData.filter(i => i.type === '支出').forEach(i => {
-        let cat = '修繕維修';
-        if (i.detail.includes('租金')) cat = '房屋租金';
-        else if (i.detail.includes('網路')) cat = '網路通訊';
-        else if (i.detail.includes('保險')) cat = '公共保險';
-        else if (i.detail.includes('設備') || i.detail.includes('洗衣機') || i.detail.includes('燈')) cat = '設備採購';
-        
-        expCategoryMap[cat] = (expCategoryMap[cat] || 0) + i.amount;
-      });
-
-      if (categoryChart) categoryChart.destroy();
-      let ctx2 = document.getElementById('expenseCategoryChart').getContext('2d');
-      categoryChart = new Chart(ctx2, {
-        type: 'doughnut',
-        data: {
-          labels: Object.keys(expCategoryMap).length > 0 ? Object.keys(expCategoryMap) : ['無支出'],
-          datasets: [{
-            data: Object.keys(expCategoryMap).length > 0 ? Object.values(expCategoryMap) : [1],
-            backgroundColor: ['#e74c3c', '#e67e22', '#f1c40f', '#9b59b6', '#34495e']
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
-    }
-
-    // Excel Batch Import Engine
-    function handleExcelUpload(e) {
-      let file = e.target.files[0];
-      if (!file) return;
-
-      let reader = new FileReader();
-      reader.onload = function(evt) {
-        let data = new Uint8Array(evt.target.result);
-        let workbook = XLSX.read(data, { type: 'array' });
-        
-        let newRecords = [];
-
-        workbook.SheetNames.forEach(sheetName => {
-          let sheet = workbook.Sheets[sheetName];
-          let jsonRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-          // Detect Region from Sheet Name (e.g. 115.10(宜蘭))
-          let regionMatch = sheetName.match(/[\(（](.*?)[\)）]/);
-          let sheetRegion = regionMatch ? regionMatch[1] : '宜蘭';
-
-          jsonRows.forEach(row => {
-            if (!row || row.length === 0) return;
-
-            // Pattern 1: Expense File (日期 / 內容 / 支出)
-            if (row[0] && row[0].toString().match(/\d+\/\d+\/\d+/) && row[1] && row[2]) {
-              let date = row[0].toString().trim();
-              let content = row[1].toString().trim();
-              let amount = parseFloat(row[2]);
-
-              if (!isNaN(amount)) {
-                // Parse "mango興平宿舍更換浴室燈座"
-                let client = 'APPLE';
-                if (content.toLowerCase().includes('mango')) client = 'mango';
-                else if (content.toLowerCase().includes('orange')) client = 'orange';
-                else if (content.toLowerCase().includes('banana')) client = 'BANANA';
-                else if (content.toLowerCase().includes('carry')) client = 'CARRY';
-
-                let dorm = '未指定';
-                let dormMatch = content.match(/(福安|國強|莊敬|民享|中原|幸福|延平|興平|五工|建中|復興|復華)/);
-                if (dormMatch) dorm = dormMatch[1] + '宿舍';
-
-                newRecords.push({
-                  id: Date.now() + Math.random(),
-                  date: date,
-                  region: sheetRegion,
-                  client: client,
-                  dorm: dorm,
-                  type: '支出',
-                  detail: content,
-                  amount: amount
-                });
-              }
-            }
-
-            // Pattern 2: Income File (姓名 / 護照 / 住宿費 / 房號)
-            if (row[0] && row[5] && !isNaN(parseFloat(row[5]))) {
-              let name = row[0].toString().trim();
-              let fee = parseFloat(row[5]);
-              let roomInfo = row[10] ? row[10].toString().trim() : '復興宿舍';
-
-              if (name !== '姓名' && name !== '合計金額' && fee > 0) {
-                newRecords.push({
-                  id: Date.now() + Math.random(),
-                  date: '115/10/01',
-                  region: sheetRegion,
-                  client: 'APPLE',
-                  dorm: roomInfo.split(' ')[0] + '宿舍',
-                  type: '收入',
-                  detail: `${name} (住宿費)`,
-                  amount: fee
-                });
-              }
-            }
-          });
-        });
-
-        if (newRecords.length > 0) {
-          masterData = masterData.concat(newRecords);
-          alert(`成功匯入 ${newRecords.length} 筆收支資料！`);
-          initFilters();
-          onFilterChange();
-        } else {
-          alert('未能識別相符的欄位，請確認檔案格式是否正確。');
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    }
-
-    function downloadSampleExcel() {
-      let sampleData = [
-        ["日期", "客戶", "宿舍名稱", "內容", "金額"],
-        ["115/10/01", "APPLE", "建國", "水管維修", 1000],
-        ["115/10/05", "APPLE", "建國", "A人 住宿費", 1000],
-        ["115/10/05", "APPLE", "建國", "B人 住宿費", 1000]
-      ];
-      let ws = XLSX.utils.aoa_to_sheet(sampleData);
-      let wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "收支匯入範本");
-      XLSX.writeFile(wb, "宿舍收支匯入範本.xlsx");
-    }
-
-    function resetSystemData() {
-      if (confirm('確定要清空所有資料嗎？')) {
-        masterData = [];
-        initFilters();
-        onFilterChange();
-      }
-    }
-  </script>
-</body>
-</html>
+      document.getElementById('incomeSubtotal').innerText = '小計: $' +
