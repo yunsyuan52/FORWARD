@@ -129,12 +129,12 @@
         <span>宿舍智慧收支與累計盈餘管理系統</span>
       </a>
       <div class="d-flex align-items-center">
-        <!-- 1. Client Master Button (Zero Dependency Modal) -->
+        <!-- Client Master Button -->
         <button class="btn btn-outline-info fw-bold px-3 py-2 me-2 shadow-sm" onclick="openClientModal()">
           <i class="fa-solid fa-address-book me-2"></i>客戶主檔維護
         </button>
 
-        <!-- 2. Robust File Upload Label -->
+        <!-- Robust File Upload Label -->
         <label class="btn btn-success fw-bold px-3 py-2 me-2 shadow-sm mb-0 style-cursor-pointer">
           <i class="fa-solid fa-file-excel me-2"></i>匯入 Excel 檔案
           <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display: none;" onchange="handleExcelUpload(event)">
@@ -143,4 +143,19 @@
         <button class="btn btn-outline-light px-3 py-2 me-2" onclick="downloadSampleExcel()">
           <i class="fa-solid fa-download me-2"></i>下載範本
         </button>
-        <button class="btn btn-outline-
+        <button class="btn btn-outline-danger px-3 py-2" onclick="resetSystemData()">
+          <i class="fa-solid fa-trash me-2"></i>重置資料
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid px-4">
+    
+    <!-- Step-by-Step Linked Filter Bar -->
+    <div class="filter-card p-3 mb-4">
+      <div class="row g-3 align-items-center">
+        <div class="col-md-4">
+          <label class="form-label fw-bold small text-muted mb-1"><i class="fa-solid fa-user-tie me-1 text-primary"></i>1. 選擇客戶 / 雇主</label>
+          <select id="filterClient" class="form-select form-select-lg fs-6" onchange="onClientChange()">
+            <option
