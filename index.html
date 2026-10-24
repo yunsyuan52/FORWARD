@@ -248,13 +248,11 @@
   </div>
 
   <script>
-    // System Master Data
+    // Master System Data
     let masterData = [
-      { id: 1, date: '115/01/05', period: '1/1~1/31', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'A人 (託管費)', amount: 1000 },
-      { id: 2, date: '115/01/05', period: '1/1~1/31', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'B人 (託管費)', amount: 1000 },
-      { id: 3, date: '115/01/05', period: '1/1~1/31', region: '宜蘭', client: 'APPLE', dorm: '建國宿舍', type: '收入', detail: 'C人 (託管費)', amount: 1000 },
-      { id: 4, date: '115/01/10', period: '-', region: '宜蘭', client: 'APPLE', dorm: '福安宿舍', type: '支出', detail: '水管維修', amount: 1000 },
-      { id: 5, date: '115/01/15', period: '-', region: '宜蘭', client: 'APPLE', dorm: '福安宿舍', type: '支出', detail: '租金11/1~11/30', amount: 6000 }
+      { id: 1, date: '115/10/01', period: '10/1~10/31', region: '宜蘭', client: 'APPLE', dorm: '復興宿舍', type: '收入', detail: '陳氏海燕 (託管費)', amount: 2700 },
+      { id: 2, date: '115/10/05', period: '-', region: '桃園', client: 'APPLE', dorm: '福安宿舍', type: '支出', detail: '租金10/1~10/31', amount: 6000 },
+      { id: 3, date: '115/10/28', period: '-', region: '桃園', client: 'orange', dorm: '中原宿舍', type: '支出', detail: '更換浴室燈座+燈泡', amount: 336 }
     ];
 
     let trendChart = null;
@@ -276,32 +274,41 @@
       return dateStr;
     }
 
+    // Dynamic Expense Parser based on "宿舍" Anchor
     function parseExpenseContent(rawContent) {
-      let content = rawContent.toString().trim();
-      let client = 'APPLE'; // Default client
-      
-      let knownClients = ['APPLE', 'BANANA', 'ORANGE', 'CARRY', 'MANGO'];
-      for (let c of knownClients) {
-        if (content.toUpperCase().includes(c)) {
-          client = (c === 'ORANGE') ? 'orange' : c;
-          content = content.replace(new RegExp(c, 'gi'), '');
-          break;
-        }
-      }
-
+      let str = rawContent.toString().trim();
+      let client = 'APPLE';
       let dorm = '綜合宿舍';
-      let knownDorms = ['福安', '國強', '莊敬', '民享', '中原', '幸福', '延平', '興平', '五工', '建中', '復興', '復華', '建國'];
-      for (let d of knownDorms) {
-        if (content.includes(d)) {
-          dorm = d + '宿舍';
-          content = content.replace(d + '宿舍', '').replace(d, '');
-          break;
+      let detail = str;
+
+      // Check if "宿舍" exists as anchor
+      let dormIdx = str.indexOf('宿舍');
+      if (dormIdx !== -1) {
+        let prefix = str.substring(0, dormIdx); // e.g., "APPLE福安" or "orange中原"
+        detail = str.substring(dormIdx + 2).trim(); // Text after "宿舍"
+
+        // Split Client and Dormitory from prefix
+        let match = prefix.match(/^([a-zA-Z0-9_\-\s]+)(.*)$/);
+        if (match) {
+          client = match[1].trim();
+          dorm = match[2].trim() ? match[2].trim() + '宿舍' : '宿舍';
+        } else {
+          dorm = prefix + '宿舍';
         }
+      } else {
+        // Fallback matching if "宿舍" word is omitted
+        let knownClients = ['APPLE', 'BANANA', 'ORANGE', 'CARRY', 'MANGO'];
+        for (let c of knownClients) {
+          if (str.toUpperCase().includes(c)) {
+            client = (c === 'ORANGE') ? 'orange' : c;
+            str = str.replace(new RegExp(c, 'gi'), '');
+            break;
+          }
+        }
+        detail = str.trim();
       }
 
-      let detail = content.trim();
-      if (!detail) detail = '宿舍開支維護';
-
+      if (!detail) detail = '宿舍維護支出';
       return { client, dorm, detail };
     }
 
@@ -523,7 +530,7 @@
       });
     }
 
-    // High-Precision Robust Excel Parser
+    // High-Precision Excel Upload Parser Engine
     function handleExcelUpload(e) {
       let file = e.target.files[0];
       if (!file) return;
@@ -546,7 +553,7 @@
             if (!row || row.length === 0) return;
             let rowStrArr = row.map(cell => cell.toString().trim());
 
-            // 1. Detect Expense File Format (col 0: Date, col 1: Content, col 2: Expense)
+            // 1. Expense File Pattern (col 0: Date, col 1: Content, col 2: Expense)
             if (rowStrArr[0] && (rowStrArr[0].match(/\d+[\/\-]\d+[\/\-]\d+/) || rowStrArr[0].match(/\d+[\/\-]\d+/)) && rowStrArr[1] && rowStrArr[2] !== undefined) {
               let dateVal = rowStrArr[0];
               let rawContent = rowStrArr[1];
@@ -570,68 +577,10 @@
               }
             }
 
-            // 2. Detect Income File Format (col 0: Name, col 2: Dorm, col 3: Fee, col 6: Period)
+            // 2. Income File Pattern (col 0: Name, col 2: Dorm, col 3: Fee, col 6: Period)
             let name = rowStrArr[0];
             let dormNameRaw = rowStrArr[2];
             let feeStr = rowStrArr[3] || rowStrArr[5];
             let periodStr = rowStrArr[6] || rowStrArr[4] || '10/1~10/31';
 
-            // Filter out non-data header rows
-            if (name && name !== '姓名' && name !== '合計金額' && !name.includes('Billing Detail') && !name.includes('灃康') && !name.includes('Forward') && !name.includes('本期應收') && feeStr) {
-              let amount = parseFloat(feeStr.toString().replace(/,/g, ''));
-              if (!isNaN(amount) && amount > 0) {
-                let dormFormatted = '綜合宿舍';
-                if (dormNameRaw) {
-                  dormFormatted = dormNameRaw.includes('宿舍') ? dormNameRaw : dormNameRaw + '宿舍';
-                }
-
-                newRecords.push({
-                  id: Date.now() + Math.random(),
-                  date: '115/10/01',
-                  period: periodStr,
-                  region: sheetRegion,
-                  client: 'APPLE',
-                  dorm: dormFormatted,
-                  type: '收入',
-                  detail: `${name} (託管費)`,
-                  amount: amount
-                });
-              }
-            }
-          });
-        });
-
-        if (newRecords.length > 0) {
-          masterData = masterData.concat(newRecords);
-          alert(`🎉 成功解析並匯入 ${newRecords.length} 筆收支資料！`);
-          initFilters();
-          onFilterChange();
-        } else {
-          alert('未能抓取到相符的欄位，請確認上傳的檔案格式是否正確。');
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    }
-
-    function downloadSampleExcel() {
-      let sampleData = [
-        ["日期", "內容", "支出"],
-        ["115/10/05", "APPLE福安宿舍租金11/1~11/30", 6000],
-        ["115/10/28", "orange中原宿舍更換浴室燈座+燈泡", 336]
-      ];
-      let ws = XLSX.utils.aoa_to_sheet(sampleData);
-      let wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "支出匯入範本");
-      XLSX.writeFile(wb, "宿舍支出匯入範本.xlsx");
-    }
-
-    function resetSystemData() {
-      if (confirm('確定要清空所有資料嗎？')) {
-        masterData = [];
-        initFilters();
-        onFilterChange();
-      }
-    }
-  </script>
-</body>
-</html>
+            if (name && name
